@@ -554,6 +554,38 @@ occ.notification("Config saved", 3)   -- 3 seconds, 5 by default
 | `SetTimeout(seconds)` | How long it stays up. |
 | `Remove()` | Takes it down early. |
 
+### Moving the notification area
+
+All notifications share one area. By default it's the top-left corner, just
+under the navbar, with notifications sliding in from the left and stacking
+downward. Move it with `occ.setnotificationarea(x, y, align, grow)`:
+
+```lua
+-- top right, 10px from the edge
+occ.setnotificationarea(ScrW() - 10, 10, "right", "down")
+
+-- bottom left, stacking upward
+occ.setnotificationarea(10, ScrH() - 10, "left", "up")
+```
+
+| Argument | What it does |
+| --- | --- |
+| `x`, `y` | The corner the stack starts from. |
+| `align` | `"left"`: the notifications' left edge sits on `x` and they slide in from the left of the screen. `"right"`: their right edge sits on `x` and they slide in from the right. |
+| `grow` | `"down"` stacks below `y`, `"up"` stacks above it. Use `"up"` for the bottom corners. |
+
+Turn notifications off with `occ.setnotificationsenabled(false)`. This takes
+down any on screen, and later `occ.notification(...)` calls still return a
+widget but never show it. `occ.notificationsenabled()` returns whether they're
+on.
+
+Leave any argument `nil` to keep its current value. `occ.getnotificationarea()`
+returns all four. Notifications already on screen move along with the area.
+The area isn't reset when occ reloads.
+
+Positions are in pixels, so if you anchor to `ScrW()` or `ScrH()`, call it
+again when the resolution changes.
+
 ## The overlay
 
 Insert (`occ.open_bind`) opens and closes the whole menu.

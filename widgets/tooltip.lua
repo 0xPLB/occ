@@ -250,6 +250,12 @@ function TOOLTIP:Think()
         --> end of the drop rather than at the start of it.
         if up then
             self:SetVisible(true)
+
+            --> Last of the root's children is last of the tree to be drawn, so the
+            --> note goes over the windows rather than under them. Only done as it
+            --> comes up - the root is sorted mid-paint, and two notes on screen
+            --> moving in front of each other every frame never let the paint end.
+            self:MoveToFront()
         end
     end
 
@@ -282,10 +288,6 @@ function TOOLTIP:Think()
     --> Under where it rests while it is on its way in or out, so it rises into
     --> place behind the cursor and drops back down as it goes.
     self:SetPos(mx - px + self.offsetX, my - py + self.offsetY + self.state.lift)
-
-    --> Last of the root's children is last of the tree to be drawn, so the note
-    --> goes over the windows rather than under them.
-    self:MoveToFront()
 end
 
 --- Paints the note.

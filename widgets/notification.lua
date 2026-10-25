@@ -18,6 +18,71 @@ local SysTime = SysTime or lje.secure.pull("SysTime", lje.state.menu)
 --- top of the screen in this order.
 local active = {}
 
+--- Where notifications go on the screen, shared by all of them. Set it with
+--- occ.setnotificationarea.
+---   x, y   the corner the stack starts from
+---   align  "left": the left edge sits on x and they slide in from the left of
+---          the screen. "right": the right edge sits on x and they slide in
+---          from the right.
+---   grow   "down" stacks under y, "up" stacks above it - for the bottom corners.
+--> Kept across a reload, like occ.opened, so a script that moved it does not
+--> see it jump back.
+occ.notificationarea = occ.notificationarea or {x = 5, y = 24, align = "left", grow = "down"}
+
+--- Moves the notification area. Anything left nil keeps what it was.
+--- @param x number|nil
+--- @param y number|nil
+--- @param align string|nil "left" or "right".
+--- @param grow string|nil "down" or "up".
+function occ.setnotificationarea(x, y, align, grow)
+    local area = occ.notificationarea
+
+    if x then area.x = x end
+    if y then area.y = y end
+    if align == "left" or align == "right" then area.align = align end
+    if grow == "down" or grow == "up" then area.grow = grow end
+end
+
+--- Are notifications shown? Off, occ.notification still hands back a widget
+--- so callers can use it as normal, but it never goes on screen.
+--> Kept across a reload like the area.
+if occ.shownotifications == nil then
+    occ.shownotifications = true
+end
+
+--- Turns notifications on or off. Turning them off takes down any on screen.
+--- @param show boolean
+function occ.setnotificationsenabled(show)
+    show = show and true or false
+
+    if occ.shownotifications == show then return end
+
+    occ.shownotifications = show
+
+    if not show then
+        for i = #active, 1, -1 do
+            active[i]:Remove()
+        end
+    end
+end
+
+--- Are notifications shown?
+--- @return boolean
+function occ.notificationsenabled()
+    return occ.shownotifications
+end
+
+--- Gets the notification area.
+--- @return number x
+--- @return number y
+--- @return string align
+--- @return string grow
+function occ.getnotificationarea()
+    local area = occ.notificationarea
+
+    return area.x, area.y, area.align, area.grow
+end
+
 --- Initializes the notification.
 function NOTIFICATION:Init()
     self.name = "notification"
@@ -36,14 +101,6 @@ function NOTIFICATION:Init()
 
     --- Space around the text.
     self.padding = 7
-
-    --- Space between the notification and the left of the screen, and how far
-    --- it slides in from.
-    self.margin = 5
-
-    --- Where the stack starts down the screen, so it comes up under the bar
-    --- along the top rather than behind it.
-    self.top = 24
 
     --- Space between stacked notifications.
     self.spacing = 4
@@ -117,21 +174,42 @@ function NOTIFICATION:Think()
         end
     end
 
-    --- Stack down the screen from where the first one starts, in the order they
-    --- were created.
-    local top = self.top
+    --- Stack away from the area's corner, in the order they were created.
+    local area = occ.notificationarea
+    local stack = 0
 
     for i = 1, #active do
         local other = active[i]
 
         if other == self then break end
 
-        top = top + other.h + self.spacing
+        stack = stack + other.h + self.spacing
+    end
+
+    local y
+
+    if area.grow == "up" then
+        y = area.y - self.h - stack
+    else
+        y = area.y + stack
+    end
+
+    --> Slides in from the edge of the screen on its own side, so offset 0 is
+    --> just off screen and 1 is resting on the area.
+    local x
+
+    if area.align == "right" then
+        local rest = area.x - self.w
+        local screen = self.parent and self.parent.w or rest + self.w
+
+        x = rest + (screen - rest) * (1 - offset)
+    else
+        x = area.x - (area.x + self.w) * (1 - offset)
     end
 
     --> inBack and outBack overshoot on purpose, so the alpha has to be clamped.
     self:SetAlpha(math.max(0, math.min(255, 255 * offset)))
-    self:SetPos((self.w + self.margin) * offset - self.w, top)
+    self:SetPos(x, y)
 end
 
 --- Paints the notification.
@@ -212,12 +290,17 @@ end
 function occ.notification(text, timeout)
     --> Its own root, not occ.root - the overlay fades out when it is closed and
     --> a notification has to be seen whether it is open or not.
-    local notification = occ.create("notification", occ.notifications or occ.root)
+    --> Turned off, it is made but never parented or stacked, so it is not
+    --> drawn and does not hold a place for later.
+    local parent = occ.shownotifications and (occ.notifications or occ.root) or nil
+    local notification = occ.create("notification", parent)
 
     notification:SetText(text)
     notification:SetTimeout(timeout or 5)
 
-    table.insert(active, notification)
+    if parent then
+        table.insert(active, notification)
+    end
 
     return notification
 end
